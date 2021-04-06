@@ -265,7 +265,13 @@ def test():
     print(calculate_n_frames(gallery_dataset))
     print(calculate_n_frames(probe_dataset))
 
-    # train_loader = get_data_loader(train_path, extensions, transform, 32, 4)
+    train_loader = get_data_loader(train_path, extensions, transform, 20, False, 10, 3)
+
+    for t in train_loader:
+        print(t[0].size())
+        print(t[1].size())
+        print(t)
+        break
 
 
 if __name__ == '__main__':
