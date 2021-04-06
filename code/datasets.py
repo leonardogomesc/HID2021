@@ -70,7 +70,8 @@ class CustomDataset(Dataset):
         frame_paths = []
 
         for frame in os.listdir(video_path):
-            frame_paths.append(os.path.join(video_path, frame))
+            if os.path.splitext(frame)[1] in self.extensions:
+                frame_paths.append(os.path.join(video_path, frame))
 
         frame_paths.sort()
 
@@ -119,7 +120,7 @@ class CustomDataset(Dataset):
 
         tensor_video = torch.stack(tensor_frames, dim=1)
 
-        return tensor_video, self.subject_ids[idx]
+        return tensor_video, self.subject_ids[idx], self.video_ids[idx]
 
 
 class BatchSampler(Sampler):
@@ -249,11 +250,12 @@ def test():
     gallery_dataset = CustomDataset(gallery_path, extensions, transform, n_frames=-1, isProbe=False)
     probe_dataset = CustomDataset(probe_path, extensions, transform, n_frames=-1, isProbe=True)
 
-    v, l = train_dataset[0]
+    v, l, lv = train_dataset[0]
 
     print(v)
     print(v.size())
     print(l)
+    print(lv)
 
     print(calculate_n_videos(train_dataset))
     print(calculate_n_videos(gallery_dataset))

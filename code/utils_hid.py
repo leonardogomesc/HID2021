@@ -21,13 +21,13 @@ def train_backbone(epochs, model, train_loader, optimizer, loss):
 
         start = time.time()
 
-        for i, (images, labels) in enumerate(train_loader):
+        for i, (videos, labels, _) in enumerate(train_loader):
 
             # forward + backward + optimize
-            images = images.to(device)
+            videos = videos.to(device)
             labels = labels.to(device)
 
-            features = model(images)
+            features = model(videos)
 
             a, p, n = batch_hard_mine(features, labels)
 
@@ -54,25 +54,15 @@ def train_backbone(epochs, model, train_loader, optimizer, loss):
 
 
 def main_train_backbone():
-    # train_path = '/ctm-hdd-pool01/leocapozzi/TOPE/Datasets/Market-1501-v15.09.15/bounding_box_train'
-
-    train_path = 'C:\\Users\\leona\\Documents\\Dataset\\Market-1501-v15.09.15\\bounding_box_train'
-    # train_path = 'C:\\Users\\leona\\Documents\\Dataset\\DukeMTMC-reID\\bounding_box_train'
-    # train_path = 'C:\\Users\\leona\\Documents\\Dataset\\cuhk03-np\\labeled\\bounding_box_train'
-    # train_path = 'C:\\Users\\leona\\Documents\\Dataset\\cuhk03-np\\detected\\bounding_box_train'
+    train_path = 'C:\\Users\\Leonardo Capozzi\\Desktop\\hid\\train'
 
     extensions = ['.jpg']
-    # extensions = ['.png']
 
-    train_transform = transforms.Compose([transforms.Resize((234, 117)),
-                                          transforms.RandomCrop((224, 112)),
-                                          transforms.RandomHorizontalFlip(p=0.5),
-                                          transforms.ToTensor(),
-                                          transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                                               std=[0.229, 0.224, 0.225])
-                                          ])
+    train_transform = transforms.Compose([transforms.ToTensor(),
+                                          transforms.Normalize(mean=[0.43216, 0.394666, 0.37645],
+                                                               std=[0.22803, 0.22145, 0.216989])])
 
-    train_loader = get_data_loader(train_path, extensions, train_transform, 20, 3)
+    train_loader = get_data_loader(train_path, extensions, train_transform, 5, False, 3, 3)
 
     model = MyModel()
     model = model.to(device)
@@ -81,7 +71,7 @@ def main_train_backbone():
 
     optimizer = torch.optim.Adam(model.parameters(), lr=0.0002)
 
-    train_backbone(50, model, train_loader, optimizer, triplet_loss)
+    train_backbone(100, model, train_loader, optimizer, triplet_loss)
 
 
 def test(model, test_loader, test_loader_query):
@@ -219,6 +209,5 @@ def main_test():
 if __name__ == '__main__':
     main_train_backbone()
     # main_test()
-    # main_test_mask()
 
 
