@@ -77,7 +77,36 @@ class CustomDataset(Dataset):
         if self.n_frames != -1:
 
             if len(frame_paths) < self.n_frames:
-                pass
+                ratio = math.floor(self.n_frames/len(frame_paths))
+                remainder = self.n_frames % len(frame_paths)
+
+                frame_paths_larger = []
+
+                for frame in frame_paths:
+                    for _ in range(ratio):
+                        frame_paths_larger.append(frame)
+
+                frame_paths_larger_2 = []
+                split_ratio = round(len(frame_paths_larger)/(remainder+1))
+                counter = 0
+
+                for frame in frame_paths_larger:
+                    frame_paths_larger_2.append(frame)
+                    counter += 1
+
+                    if counter == split_ratio:
+                        frame_paths_larger_2.append(frame)
+                        counter = 0
+
+                if len(frame_paths_larger_2) > self.n_frames:
+                    frame_paths_larger_2 = frame_paths_larger_2[:self.n_frames]
+                elif len(frame_paths_larger_2) < self.n_frames:
+                    last_elem = frame_paths_larger_2[-1]
+
+                    while len(frame_paths_larger_2) < self.n_frames:
+                        frame_paths_larger_2.append(last_elem)
+
+                frame_paths = frame_paths_larger_2
             else:
                 start_idx = random.randint(0, len(frame_paths)-self.n_frames)
                 frame_paths = frame_paths[start_idx:start_idx+self.n_frames]
@@ -94,12 +123,12 @@ class CustomDataset(Dataset):
 
 
 class BatchSampler(Sampler):
-    def __init__(self, dataset, n_persons, n_pictures):
+    def __init__(self, dataset, n_persons, n_videos):
         self.dataset = dataset
         self.n_persons = n_persons
-        self.n_pictures = n_pictures
+        self.n_videos = n_videos
 
-        self.len = math.ceil(len(self.dataset) / (self.n_persons * self.n_pictures))
+        self.len = math.ceil(len(self.dataset) / (self.n_persons * self.n_videos))
 
     def __iter__(self):
         for _ in range(self.len):
@@ -112,8 +141,8 @@ class BatchSampler(Sampler):
             for key in keys:
                 objects = self.dataset.individuals[key]
 
-                if len(objects) >= self.n_pictures:
-                    objects = random.sample(objects, self.n_pictures)
+                if len(objects) >= self.n_videos:
+                    objects = random.sample(objects, self.n_videos)
 
                 anchors.extend(objects)
 
@@ -123,27 +152,18 @@ class BatchSampler(Sampler):
         return self.len
 
 
-def get_data_loader(data_path, extensions, transform, n_persons, n_pictures):
+def get_data_loader(data_path, extensions, transform, n_frames, isProbe, n_persons, n_videos):
 
-    dataset = CustomDataset(data_path, extensions, transform)
+    dataset = CustomDataset(data_path, extensions, transform, n_frames, isProbe)
 
-    batch_sampler = BatchSampler(dataset, n_persons, n_pictures)
+    batch_sampler = BatchSampler(dataset, n_persons, n_videos)
 
     data_loader = DataLoader(dataset, batch_sampler=batch_sampler, num_workers=4)
 
     return data_loader
 
 
-def get_mask_data_loader(data_path, extensions, transform, batch_size):
-
-    dataset = CustomDataset(data_path, extensions, transform)
-
-    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=4)
-
-    return data_loader
-
-
-def get_test_data_loader(data_path, extensions, transform, batch_size):
+def get_test_data_loader(data_path, extensions, transform, n_frames, is_Probe, batch_size):
 
     dataset = CustomDataset(data_path, extensions, transform)
 
@@ -225,7 +245,7 @@ def test():
 
     transform = transforms.Compose([transforms.ToTensor()])
 
-    train_dataset = CustomDataset(train_path, extensions, transform, n_frames=10, isProbe=False)
+    train_dataset = CustomDataset(train_path, extensions, transform, n_frames=100, isProbe=False)
     gallery_dataset = CustomDataset(gallery_path, extensions, transform, n_frames=-1, isProbe=False)
     probe_dataset = CustomDataset(probe_path, extensions, transform, n_frames=-1, isProbe=True)
 
@@ -250,4 +270,3 @@ def test():
 
 if __name__ == '__main__':
     test()
-
