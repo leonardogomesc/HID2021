@@ -2,8 +2,8 @@ import torch
 from torchvision import transforms
 import torch.nn as nn
 import time
-from model import MyModel, MyUNetModel
-from datasets import get_data_loader, get_mask_data_loader, get_test_data_loader
+from model import MyModel
+from datasets import get_data_loader, get_test_data_loader
 from triplet import batch_hard_mine
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
