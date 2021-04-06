@@ -165,7 +165,7 @@ def get_data_loader(data_path, extensions, transform, n_frames, isProbe, n_perso
 
 def get_test_data_loader(data_path, extensions, transform, n_frames, is_Probe, batch_size):
 
-    dataset = CustomDataset(data_path, extensions, transform)
+    dataset = CustomDataset(data_path, extensions, transform, n_frames, is_Probe)
 
     data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=4)
 
