@@ -4,7 +4,7 @@ import torchvision
 
 
 class MyModel(nn.Module):
-    def __init__(self):
+    def __init__(self, num_classes):
         super(MyModel, self).__init__()
         res = torchvision.models.video.r2plus1d_18(pretrained=True, progress=True)
 
@@ -20,6 +20,8 @@ class MyModel(nn.Module):
         self.batchnorm = nn.BatchNorm3d(512)
         self.relu = nn.ReLU()
 
+        self.fc = nn.Linear(512, num_classes)
+
     def forward(self, x):
         x = self.backbone(x)
 
@@ -29,12 +31,14 @@ class MyModel(nn.Module):
 
         x = x.view(x.size()[0], -1)
 
-        return x
+        fc_x = self.fc(x)
+
+        return x, fc_x
 
 
 def test():
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-    model = MyModel()
+    model = MyModel(10)
     model.to(device)
 
     model.train()

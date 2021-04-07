@@ -11,7 +11,7 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 print(device)
 
 
-def train_backbone(epochs, model, train_loader, optimizer, loss):
+def train_backbone(epochs, model, train_loader, optimizer, triplet_loss, cross_ent):
     every_x_minibatches = 10
     model.train()
 
@@ -27,11 +27,11 @@ def train_backbone(epochs, model, train_loader, optimizer, loss):
             videos = videos.to(device)
             labels = labels.to(device)
 
-            features = model(videos)
+            features, fc = model(videos)
 
             a, p, n = batch_hard_mine(features, labels)
 
-            loss_value = loss(a, p, n)
+            loss_value = triplet_loss(a, p, n) + cross_ent(fc, labels)
 
             # zero the parameter gradients
             optimizer.zero_grad()
@@ -58,20 +58,22 @@ def main_train_backbone():
 
     extensions = ['.jpg']
 
-    train_transform = transforms.Compose([transforms.ToTensor(),
+    train_transform = transforms.Compose([transforms.Resize((64, 64)),
+                                          transforms.ToTensor(),
                                           transforms.Normalize(mean=[0.43216, 0.394666, 0.37645],
                                                                std=[0.22803, 0.22145, 0.216989])])
 
-    train_loader = get_data_loader(train_path, extensions, train_transform, 5, False, 3, 3)
+    train_loader, num_classes = get_data_loader(train_path, extensions, train_transform, 10, False, 7, 3)
 
-    model = MyModel()
+    model = MyModel(num_classes)
     model = model.to(device)
 
     triplet_loss = nn.TripletMarginLoss(margin=1.0, p=2)
+    cross_ent = nn.CrossEntropyLoss()
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0002)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
 
-    train_backbone(100, model, train_loader, optimizer, triplet_loss)
+    train_backbone(300, model, train_loader, optimizer, triplet_loss, cross_ent)
 
 
 def test(model, test_loader, test_loader_query):

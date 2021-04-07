@@ -11,7 +11,7 @@ import torch
 
 class CustomDataset(Dataset):
 
-    def __init__(self, root, extensions, transform, n_frames=-1, isProbe=False):
+    def __init__(self, root, extensions, transform, n_frames=-1, isProbe=False, normLabels=False):
         self.root = root
         self.extensions = extensions
         self.transform = transform
@@ -53,6 +53,25 @@ class CustomDataset(Dataset):
                 file = file.split(os.sep)
                 self.subject_ids.append(int(file[-2]))
                 self.video_ids.append(file[-1])
+
+        if normLabels:
+            norm_subject_ids = []
+
+            id_dic = {}
+            current_id = -1
+
+            for s_id in self.subject_ids:
+
+                norm_id = id_dic.get(s_id, -1)
+
+                if norm_id == -1:
+                    current_id += 1
+                    id_dic[s_id] = current_id
+                    norm_id = current_id
+
+                norm_subject_ids.append(norm_id)
+
+            self.subject_ids = norm_subject_ids
 
         for idx in range(len(self.subject_ids)):
             subject_id = self.subject_ids[idx]
@@ -122,6 +141,9 @@ class CustomDataset(Dataset):
 
         return tensor_video, self.subject_ids[idx], self.video_ids[idx]
 
+    def get_num_classes(self):
+        return len(list(self.individuals.keys()))
+
 
 class BatchSampler(Sampler):
     def __init__(self, dataset, n_persons, n_videos):
@@ -155,18 +177,18 @@ class BatchSampler(Sampler):
 
 def get_data_loader(data_path, extensions, transform, n_frames, isProbe, n_persons, n_videos):
 
-    dataset = CustomDataset(data_path, extensions, transform, n_frames, isProbe)
+    dataset = CustomDataset(data_path, extensions, transform, n_frames=n_frames, isProbe=isProbe, normLabels=True)
 
     batch_sampler = BatchSampler(dataset, n_persons, n_videos)
 
     data_loader = DataLoader(dataset, batch_sampler=batch_sampler, num_workers=4)
 
-    return data_loader
+    return data_loader, dataset.get_num_classes()
 
 
 def get_test_data_loader(data_path, extensions, transform, n_frames, is_Probe, batch_size):
 
-    dataset = CustomDataset(data_path, extensions, transform, n_frames, is_Probe)
+    dataset = CustomDataset(data_path, extensions, transform, n_frames=n_frames, isProbe=is_Probe, normLabels=False)
 
     data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=4)
 
@@ -246,9 +268,14 @@ def test():
 
     transform = transforms.Compose([transforms.ToTensor()])
 
-    train_dataset = CustomDataset(train_path, extensions, transform, n_frames=100, isProbe=False)
+    train_dataset = CustomDataset(train_path, extensions, transform, n_frames=100, isProbe=False, normLabels=True)
     gallery_dataset = CustomDataset(gallery_path, extensions, transform, n_frames=-1, isProbe=False)
     probe_dataset = CustomDataset(probe_path, extensions, transform, n_frames=-1, isProbe=True)
+
+    print(train_dataset.get_num_classes())
+    print(gallery_dataset.get_num_classes())
+    print(probe_dataset.get_num_classes())
+    print(train_dataset.subject_ids)
 
     v, l, lv = train_dataset[0]
 
