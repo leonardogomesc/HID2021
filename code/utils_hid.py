@@ -49,23 +49,26 @@ def train_backbone(epochs, model, train_loader, optimizer, triplet_loss, cross_e
         print('epoch time: ' + str(end - start))
 
         torch.save(model.state_dict(), 'weights\\model.pth')
+        # torch.save(model.state_dict(), 'weights/model.pth')
 
     print('Finished Training')
 
 
 def main_train_backbone():
     train_path = 'C:\\Users\\Leonardo Capozzi\\Desktop\\hid\\train'
+    # train_path = '/ctm-hdd-pool01/leocapozzi/HID2021/data/train'
 
     extensions = ['.jpg']
 
-    train_transform = transforms.Compose([transforms.Resize((64, 64)),
+    train_transform = transforms.Compose([transforms.Resize((90, 90)),
                                           transforms.ToTensor(),
                                           transforms.Normalize(mean=[0.43216, 0.394666, 0.37645],
                                                                std=[0.22803, 0.22145, 0.216989])])
 
-    train_loader, num_classes = get_data_loader(train_path, extensions, train_transform, 10, False, 7, 3)
+    train_loader, num_classes = get_data_loader(train_path, extensions, train_transform, 20, False, 9, 3)
 
     model = MyModel(num_classes)
+    # model.load_state_dict(torch.load('/ctm-hdd-pool01/leocapozzi/HID2021/code/weights/model.pth', map_location='cpu'))
     model = model.to(device)
 
     triplet_loss = nn.TripletMarginLoss(margin=1.0, p=2)
@@ -73,143 +76,101 @@ def main_train_backbone():
 
     optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
 
-    train_backbone(300, model, train_loader, optimizer, triplet_loss, cross_ent)
+    train_backbone(100, model, train_loader, optimizer, triplet_loss, cross_ent)
 
 
 def test(model, test_loader, test_loader_query):
     test_features = []
-    test_labels = []
+    test_subject_ids = []
+    test_video_ids = []
 
     query_features = []
-    query_labels = []
+    query_subject_ids = []
+    query_video_ids = []
 
     with torch.no_grad():
         model.eval()
 
         for i, data in enumerate(test_loader):
-            images, labels = data
+            videos, subject_ids, video_ids = data
 
             # forward
-            images = images.to(device)
+            videos = videos.to(device)
 
-            features = model(images)
+            features, fc = model(videos)
             features = features.cpu()
 
             test_features.append(features)
-            test_labels.append(labels)
+            test_subject_ids.append(subject_ids)
+            test_video_ids.extend(list(video_ids))
+
+            print(i)
 
         for i, data in enumerate(test_loader_query):
-            images, labels = data
+            videos, subject_ids, video_ids = data
 
             # forward
-            images = images.to(device)
+            videos = videos.to(device)
 
-            features = model(images)
+            features, fc = model(videos)
             features = features.cpu()
 
             query_features.append(features)
-            query_labels.append(labels)
+            query_subject_ids.append(subject_ids)
+            query_video_ids.extend(list(video_ids))
+
+            print(i)
 
         test_features = torch.cat(test_features, dim=0)
-        test_labels = torch.cat(test_labels, dim=0)
+        test_subject_ids = torch.cat(test_subject_ids, dim=0)
 
         query_features = torch.cat(query_features, dim=0)
-        query_labels = torch.cat(query_labels, dim=0)
+        query_subject_ids = torch.cat(query_subject_ids, dim=0)
 
         distance_matrix = torch.cdist(query_features, test_features, p=2)
         sorted_matrix = torch.argsort(distance_matrix, dim=1)
 
-        rank1 = sorted_matrix[:, :1]
-        rank1_correct = 0
+        f = open('submission.csv', 'w')
+        f.write('videoID,label')
+        f.write('\n')
 
-        rank5 = sorted_matrix[:, :5]
-        rank5_correct = 0
+        for i in range(len(query_features)):
+            query_v_id = query_video_ids[i]
 
-        rank10 = sorted_matrix[:, :10]
-        rank10_correct = 0
+            idx_best_subject = sorted_matrix[i][0]
+            best_subject_id = int(test_subject_ids[idx_best_subject])
 
-        total = 0
+            f.write(f'{query_v_id},{best_subject_id}')
+            f.write('\n')
 
-        for i in range(len(query_labels)):
-            q_label = query_labels[i]
-
-            if q_label in test_labels[rank1[i]]:
-                rank1_correct += 1
-
-            if q_label in test_labels[rank5[i]]:
-                rank5_correct += 1
-
-            if q_label in test_labels[rank10[i]]:
-                rank10_correct += 1
-
-            total += 1
-
-        print('rank1 acc: ' + str(rank1_correct / total))
-        print('rank5 acc: ' + str(rank5_correct / total))
-        print('rank10 acc: ' + str(rank10_correct / total))
-
-        # map
-
-        expanded_test_labels = test_labels.repeat(query_labels.size()[0], 1)
-
-        sorted_labels_matrix = torch.gather(expanded_test_labels, 1, sorted_matrix)
-
-        query_mask = torch.unsqueeze(query_labels, 1) == sorted_labels_matrix
-
-        cum_true = torch.cumsum(query_mask, dim=1)
-
-        num_pred_pos = torch.cumsum(torch.ones_like(cum_true), dim=1)
-
-        p = query_mask * (cum_true / num_pred_pos)
-
-        ap = torch.sum(p, 1)/torch.sum(query_mask, 1)
-
-        map = torch.mean(ap)
-
-        # map = torch.sum(p)/torch.sum(query_mask)
-
-        print('')
-        print('map: ' + str(map.item()))
+        f.close()
 
 
 def main_test():
-    # test_path = '/ctm-hdd-pool01/leocapozzi/TOPE/Datasets/Market-1501-v15.09.15/bounding_box_test'
 
-    test_path = 'C:\\Users\\leona\\Documents\\Dataset\\Market-1501-v15.09.15\\bounding_box_test'
-    query_path = 'C:\\Users\\leona\\Documents\\Dataset\\Market-1501-v15.09.15\\query'
-
-    # test_path = 'C:\\Users\\leona\\Documents\\Dataset\\DukeMTMC-reID\\bounding_box_test'
-    # query_path = 'C:\\Users\\leona\\Documents\\Dataset\\DukeMTMC-reID\\query'
-
-    # test_path = 'C:\\Users\\leona\\Documents\\Dataset\\cuhk03-np\\labeled\\bounding_box_test'
-    # query_path = 'C:\\Users\\leona\\Documents\\Dataset\\cuhk03-np\\labeled\\query'
-
-    # test_path = 'C:\\Users\\leona\\Documents\\Dataset\\cuhk03-np\\detected\\bounding_box_test'
-    # query_path = 'C:\\Users\\leona\\Documents\\Dataset\\cuhk03-np\\detected\\query'
+    test_path = 'C:\\Users\\Leonardo Capozzi\\Desktop\\hid\\HID2021_test_gallery\\HID2021_test_gallery'
+    query_path = 'C:\\Users\\Leonardo Capozzi\\Desktop\\hid\\HID2021_test_probe\\HID2021_test_probe'
 
     extensions = ['.jpg']
-    # extensions = ['.png']
 
-    test_transform = transforms.Compose([transforms.Resize((234, 117)),
-                                         transforms.CenterCrop((224, 112)),
+    test_transform = transforms.Compose([transforms.Resize((90, 90)),
                                          transforms.ToTensor(),
-                                         transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                                              std=[0.229, 0.224, 0.225])
-                                         ])
+                                         transforms.Normalize(mean=[0.43216, 0.394666, 0.37645],
+                                                              std=[0.22803, 0.22145, 0.216989])])
 
-    test_loader = get_test_data_loader(test_path, extensions, test_transform, 128)
-    test_loader_query = get_test_data_loader(query_path, extensions, test_transform, 128)
+    test_loader = get_test_data_loader(test_path, extensions, test_transform, 2, False, 64)
+    test_loader_query = get_test_data_loader(query_path, extensions, test_transform, 2, True, 64)
 
-    model = MyModel()
+    model = MyModel(1)
     # model.load_state_dict(torch.load('/ctm-hdd-pool01/leocapozzi/TOPE/ReID/model.pth', map_location='cpu'))
-    model.load_state_dict(torch.load('weights\\model_with_mask.pth', map_location='cpu'))
+    # model.load_state_dict(torch.load('weights\\model_with_mask.pth', map_location='cpu'))
     model = model.to(device)
 
     test(model, test_loader, test_loader_query)
 
 
 if __name__ == '__main__':
-    main_train_backbone()
-    # main_test()
+    # main_train_backbone()
+    main_test()
 
 
