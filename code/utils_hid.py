@@ -105,8 +105,6 @@ def validation(model, validation_loader):
             val_features.append(features)
             val_subject_ids.append(subject_ids)
 
-            print(i)
-
         val_features = torch.cat(val_features, dim=0)
         val_subject_ids = torch.cat(val_subject_ids, dim=0)
 
@@ -127,7 +125,7 @@ def validation(model, validation_loader):
 
 
 def main_validation(model):
-    val_path = 'C:\\Users\\Leonardo Capozzi\\Desktop\\hid\\HID2021_val'
+    val_path = 'C:\\Users\\Leonardo Capozzi\\Desktop\\hid\\val'
 
     extensions = ['.jpg']
 
