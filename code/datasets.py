@@ -195,6 +195,15 @@ def get_test_data_loader(data_path, extensions, transform, n_frames, is_Probe, b
     return data_loader
 
 
+def get_val_data_loader(data_path, extensions, transform, n_frames, is_Probe, batch_size):
+
+    dataset = CustomDataset(data_path, extensions, transform, n_frames=n_frames, isProbe=is_Probe, normLabels=True)
+
+    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=4)
+
+    return data_loader
+
+
 def calculate_n_videos(dataset):
     min = np.inf
     max = -np.inf

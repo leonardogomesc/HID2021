@@ -3,8 +3,9 @@ from torchvision import transforms
 import torch.nn as nn
 import time
 from model import MyModel
-from datasets import get_data_loader, get_test_data_loader
-from triplet import batch_hard_mine
+from datasets import get_data_loader, get_test_data_loader, get_val_data_loader
+from triplet import batch_hard_mine, positive_mask, negative_mask
+import numpy as np
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
@@ -13,9 +14,10 @@ print(device)
 
 def train_backbone(epochs, model, train_loader, optimizer, triplet_loss, cross_ent):
     every_x_minibatches = 10
-    model.train()
+    best_model = -np.inf
 
     for epoch in range(epochs):
+        model.train()
 
         running_loss = 0.0
 
@@ -44,12 +46,17 @@ def train_backbone(epochs, model, train_loader, optimizer, triplet_loss, cross_e
                 print(f'[{epoch + 1}, {i + 1}] loss: {running_loss / every_x_minibatches}')
                 running_loss = 0.0
 
+        val_acc = main_validation(model)
+
+        if val_acc > best_model:
+            best_model = val_acc
+            torch.save(model.state_dict(), 'weights\\model.pth')
+            # torch.save(model.state_dict(), 'weights/model.pth')
+            print(f'saved model with a score of {val_acc}')
+
         end = time.time()
 
         print('epoch time: ' + str(end - start))
-
-        torch.save(model.state_dict(), 'weights\\model.pth')
-        # torch.save(model.state_dict(), 'weights/model.pth')
 
     print('Finished Training')
 
@@ -77,6 +84,61 @@ def main_train_backbone():
     optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
 
     train_backbone(100, model, train_loader, optimizer, triplet_loss, cross_ent)
+
+
+def validation(model, validation_loader):
+    val_features = []
+    val_subject_ids = []
+
+    with torch.no_grad():
+        model.eval()
+
+        for i, data in enumerate(validation_loader):
+            videos, subject_ids, video_ids = data
+
+            # forward
+            videos = videos.to(device)
+            subject_ids = subject_ids.to(device)
+
+            features, fc = model(videos)
+
+            val_features.append(features)
+            val_subject_ids.append(subject_ids)
+
+            print(i)
+
+        val_features = torch.cat(val_features, dim=0)
+        val_subject_ids = torch.cat(val_subject_ids, dim=0)
+
+        distance_matrix = torch.cdist(val_features, val_features, p=2)
+
+        pm = positive_mask(val_subject_ids)
+        nm = negative_mask(val_subject_ids)
+
+        positive_dist = distance_matrix * pm
+        positive_dist = torch.sum(positive_dist)/torch.sum(pm)
+
+        negative_dist = distance_matrix * nm
+        negative_dist = torch.sum(negative_dist)/torch.sum(nm)
+
+        val_acc = negative_dist - positive_dist
+
+        return val_acc.item()
+
+
+def main_validation(model):
+    val_path = 'C:\\Users\\Leonardo Capozzi\\Desktop\\hid\\HID2021_val'
+
+    extensions = ['.jpg']
+
+    val_transform = transforms.Compose([transforms.Resize((90, 90)),
+                                        transforms.ToTensor(),
+                                        transforms.Normalize(mean=[0.43216, 0.394666, 0.37645],
+                                                             std=[0.22803, 0.22145, 0.216989])])
+
+    val_loader = get_val_data_loader(val_path, extensions, val_transform, 120, False, 16)
+
+    return validation(model, val_loader)
 
 
 def test(model, test_loader, test_loader_query):
@@ -151,6 +213,9 @@ def main_test():
     test_path = 'C:\\Users\\Leonardo Capozzi\\Desktop\\hid\\HID2021_test_gallery\\HID2021_test_gallery'
     query_path = 'C:\\Users\\Leonardo Capozzi\\Desktop\\hid\\HID2021_test_probe\\HID2021_test_probe'
 
+    # test_path = '/ctm-hdd-pool01/leocapozzi/HID2021/data/gallery/HID2021_test_gallery'
+    # query_path = '/ctm-hdd-pool01/leocapozzi/HID2021/data/probe/HID2021_test_probe'
+
     extensions = ['.jpg']
 
     test_transform = transforms.Compose([transforms.Resize((90, 90)),
@@ -158,12 +223,11 @@ def main_test():
                                          transforms.Normalize(mean=[0.43216, 0.394666, 0.37645],
                                                               std=[0.22803, 0.22145, 0.216989])])
 
-    test_loader = get_test_data_loader(test_path, extensions, test_transform, 2, False, 64)
-    test_loader_query = get_test_data_loader(query_path, extensions, test_transform, 2, True, 64)
+    test_loader = get_test_data_loader(test_path, extensions, test_transform, 120, False, 16)
+    test_loader_query = get_test_data_loader(query_path, extensions, test_transform, 120, True, 16)
 
     model = MyModel(1)
-    # model.load_state_dict(torch.load('/ctm-hdd-pool01/leocapozzi/TOPE/ReID/model.pth', map_location='cpu'))
-    # model.load_state_dict(torch.load('weights\\model_with_mask.pth', map_location='cpu'))
+    # model.load_state_dict(torch.load('/ctm-hdd-pool01/leocapozzi/HID2021/code/weights/model_100epochs.pth', map_location='cpu'))
     model = model.to(device)
 
     test(model, test_loader, test_loader_query)
